@@ -10,19 +10,37 @@ def to_utc_iso(dt: datetime) -> str:
         dt = dt.astimezone(timezone.utc)
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
+async def get_all_calendar_ids(client: httpx.AsyncClient, headers: dict) -> List[str]:
+    """Henter ID'er på alle brugerens kalendere (inkl. delte kalendere)."""
+    cal_ids = ["primary"]
+    try:
+        res = await client.get("https://www.googleapis.com/calendar/v3/users/me/calendarList", headers=headers)
+        if res.status_code == 200:
+            data = res.json()
+            for item in data.get("items", []):
+                cid = item.get("id")
+                if cid and cid not in cal_ids:
+                    cal_ids.append(cid)
+    except Exception as e:
+        print("Kunne ikke hente calendarList:", e)
+    return cal_ids
+
 async def get_google_busy_times(
     access_token: str, time_min: datetime, time_max: datetime
 ) -> List[Tuple[datetime, datetime]]:
-    """Henter optagede tidsrum fra brugerens primære Google Kalender."""
+    """Henter optagede tidsrum fra alle brugerens tilgængelige Google Kalendere."""
     url = "https://www.googleapis.com/calendar/v3/freeBusy"
     headers = {"Authorization": f"Bearer {access_token}"}
-    payload = {
-        "timeMin": to_utc_iso(time_min),
-        "timeMax": to_utc_iso(time_max),
-        "items": [{"id": "primary"}]
-    }
 
     async with httpx.AsyncClient() as client:
+        calendar_ids = await get_all_calendar_ids(client, headers)
+        
+        payload = {
+            "timeMin": to_utc_iso(time_min),
+            "timeMax": to_utc_iso(time_max),
+            "items": [{"id": cid} for cid in calendar_ids]
+        }
+
         response = await client.post(url, json=payload, headers=headers)
         print("🔍 GOOGLE FREEBUSY STATUS:", response.status_code)
         print("🔍 GOOGLE FREEBUSY SVAR:", response.text)
@@ -31,13 +49,14 @@ async def get_google_busy_times(
             return []
         
         data = response.json()
-        busy_list = data.get("calendars", {}).get("primary", {}).get("busy", [])
+        calendars = data.get("calendars", {})
         
         parsed_busy = []
-        for slot in busy_list:
-            start = datetime.fromisoformat(slot["start"].replace("Z", "+00:00"))
-            end = datetime.fromisoformat(slot["end"].replace("Z", "+00:00"))
-            parsed_busy.append((start, end))
+        for cal_id, cal_data in calendars.items():
+            for slot in cal_data.get("busy", []):
+                start = datetime.fromisoformat(slot["start"].replace("Z", "+00:00"))
+                end = datetime.fromisoformat(slot["end"].replace("Z", "+00:00"))
+                parsed_busy.append((start, end))
             
         return parsed_busy
 

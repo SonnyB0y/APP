@@ -34,8 +34,8 @@ def google_login(event_token: str = ""):
         "client_id": GOOGLE_CLIENT_ID,
         "redirect_uri": GOOGLE_REDIRECT_URI,
         "response_type": "code",
-        # Vi beder KUN om lov til at læse ledig/optaget-status, intet andet!
-        "scope": "https://www.googleapis.com/auth/calendar.freebusy",
+        # Adgang til at læse kalenderliste og freebusy
+        "scope": "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.freebusy",
         "access_type": "online",
         "state": event_token,  # Husker hvilken aftale brugeren kom fra
         "prompt": "consent"
