@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Aftale App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .busy-stripe {
+            background-image: repeating-linear-gradient(
+                45deg,
+                #fef2f2,
+                #fef2f2 10px,
+                #fee2e2 10px,
+                #fee2e2 20px
+            );
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans">
+
+    <!-- Top Navigation -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">A</div>
+                <span class="font-bold text-lg tracking-tight">Aftale<span class="text-indigo-600">Smart</span></span>
+                <span id="connection-badge" class="ml-2 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">Tjekker server...</span>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="switchTab('vote')" id="tab-vote" class="px-4 py-1.5 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-700">Afstemning</button>
+                <button onclick="switchTab('create')" id="tab-create" class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">+ Opret ny aftale</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 py-8">
+
+        <!-- ========================================== -->
+        <!-- VISNING 1: AFSTEMNING                      -->
+        <!-- ========================================== -->
+        <div id="view-vote" class="space-y-6">
+            
+            <!-- Aftale Header -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 id="event-title" class="text-2xl font-bold text-slate-900">Indlæser aftale...</h1>
+                    <p id="event-desc" class="text-slate-500 mt-1"></p>
+                    <p id="share-link-box" class="text-xs text-indigo-600 mt-2 hidden"></p>
+                </div>
+                <button onclick="downloadICS()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-xl transition shadow-sm">
+                    📅 Afslut & Hent .ics invitation
+                </button>
+            </div>
+
+            <!-- Auto-Busy Kalender Banner -->
+            <div class="bg-gradient-to-r from-indigo-600 to-violet-600 p-5 rounded-2xl shadow-md text-white flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div>
+                    <h2 class="font-semibold text-lg flex items-center gap-2">✨ Slut med at tjekke kalenderen manuelt</h2>
+                    <p class="text-indigo-100 text-sm">Forbind din kalender midlertidigt – så gråtoner vi automatisk de tider, hvor du allerede er optaget.</p>
+                </div>
+                <div class="flex gap-2 shrink-0">
+                    <button onclick="connectCalendar()" id="btn-calendar" class="px-4 py-2.5 bg-white text-indigo-700 hover:bg-indigo-50 font-semibold text-sm rounded-xl shadow-sm transition">
+                        🔗 Tjek Google Kalender
+                    </button>
+                </div>
+            </div>
+
+            <!-- Afstemningstabel -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr id="table-header-row" class="border-b border-slate-200 bg-slate-50/50">
+                                <th class="p-4 font-semibold text-slate-600 w-48">Deltager</th>
+                                <!-- Tids-kolonner indsættes dynamisk her via JS -->
+                            </tr>
+                        </thead>
+                        <tbody id="participants-body" class="divide-y divide-slate-200 text-sm">
+                            <!-- Eksisterende stemmer fra databasen indsættes her -->
+                        </tbody>
+                        <tfoot>
+                            <!-- Den aktive brugers stemme-række -->
+                            <tr id="my-vote-row" class="bg-indigo-50/40 border-t-2 border-indigo-100">
+                                <td class="p-4 align-top">
+                                    <input type="text" id="voter-name" placeholder="Dit navn..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                </td>
+                                <!-- Knapper til brugerens egne valg indsættes her via JS -->
+                            </tr>
+                            <!-- Smart Match Score Række -->
+                            <tr id="score-row" class="bg-slate-50 border-t border-slate-200 font-medium text-xs text-slate-600">
+                                <td class="p-4">Smart Match Score</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+                    <button onclick="handleVoteSubmit()" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-sm transition">
+                        Indsend mine stemmer →
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- VISNING 2: OPRET NY AFTALE                 -->
+        <!-- ========================================== -->
+        <div id="view-create" class="hidden max-w-2xl mx-auto bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+            <h2 class="text-xl font-bold text-slate-900">Opret ny aftale</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Hvad skal I aftale?</label>
+                    <input type="text" id="create-title" placeholder="F.eks. Brætspilsaften eller Projektmøde" class="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Beskrivelse / Sted (valgfri)</label>
+                    <input type="text" id="create-desc" placeholder="F.eks. Hos Anders eller på Teams" class="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Foreslåede tidspunkter</label>
+                    <div id="time-slots-container" class="space-y-2">
+                        <div class="flex gap-2 items-center time-slot-row">
+                            <input type="date" value="2026-10-22" class="slot-date px-3 py-2 border border-slate-300 rounded-xl text-sm">
+                            <input type="time" value="10:00" class="slot-start px-3 py-2 border border-slate-300 rounded-xl text-sm">
+                            <span>til</span>
+                            <input type="time" value="11:30" class="slot-end px-3 py-2 border border-slate-300 rounded-xl text-sm">
+                        </div>
+                        <div class="flex gap-2 items-center time-slot-row">
+                            <input type="date" value="2026-10-23" class="slot-date px-3 py-2 border border-slate-300 rounded-xl text-sm">
+                            <input type="time" value="14:00" class="slot-start px-3 py-2 border border-slate-300 rounded-xl text-sm">
+                            <span>til</span>
+                            <input type="time" value="15:30" class="slot-end px-3 py-2 border border-slate-300 rounded-xl text-sm">
+                        </div>
+                    </div>
+                    <button onclick="addTimeSlotRow()" type="button" class="mt-3 text-sm text-indigo-600 font-medium hover:underline">+ Tilføj et tidspunkt mere</button>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-slate-200 flex justify-end">
+                <button onclick="handleCreateSubmit()" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-sm transition">
+                    Opret aftale & få delingslink
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ========================================== -->
+    <!-- JAVASCRIPT: LOGIK & BACKEND-INTEGRATION    -->
+    <!-- ========================================== -->
+    <script>
+        const API_BASE_URL = "http://localhost:8000";
+        let currentEvent = null;
+        let mySelections = {}; // Holder styr på hvad brugeren har klikket: { time_option_id: "yes" | "if_need_be" | "no" }
+        let isBackendOnline = false;
+
+        // Demo-data hvis man åbner filen uden at Docker kører
+        const fallbackDemoEvent = {
+            title: "Q4 Strategimøde (Demo)",
+            description: "Vi finder lige en time til at lukke planen. Lokale 3.",
+            public_token: "demo-mode",
+            time_options: [
+                { id: 101, start_time: "2026-10-22T09:00:00Z", end_time: "2026-10-22T10:30:00Z", is_busy: false, votes: [{ participant_name: "Sofie", status: "yes" }, { participant_name: "Kasper", status: "yes" }] },
+                { id: 102, start_time: "2026-10-23T13:00:00Z", end_time: "2026-10-23T14:30:00Z", is_busy: false, votes: [{ participant_name: "Sofie", status: "if_need_be" }, { participant_name: "Kasper", status: "yes" }] },
+                { id: 103, start_time: "2026-10-24T10:00:00Z", end_time: "2026-10-24T11:30:00Z", is_busy: false, votes: [{ participant_name: "Sofie", status: "no" }, { participant_name: "Kasper", status: "yes" }] }
+            ]
+        };
+
+        // 1. OPSTART: Tjek URL for ?token= og hent fra FastAPI
+        document.addEventListener("DOMContentLoaded", async () => {
+            const params = new URLSearchParams(window.location.search);
+            const googleToken = params.get("google_token");
+            const eventToken = params.get("token");
+
+            // Hvis vi lige er kommet tilbage fra Google Login:
+            if (googleToken) {
+                sessionStorage.setItem("google_access_token", googleToken);
+                // Fjern det lange google_token fra adressebaren så URL'en er pæn igen
+                const cleanUrl = eventToken ? `${window.location.pathname}?token=${eventToken}` : window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+        
+                // Opdater knappen visuelt
+                const btn = document.getElementById("btn-calendar");
+                btn.textContent = "✅ Google Kalender forbundet!";
+                btn.className = "px-4 py-2.5 bg-emerald-400 text-slate-900 font-semibold text-sm rounded-xl shadow-sm";
+            }
+            await loadEventFromBackend();
+        });
+
+        function getEventTokenFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get("token");
+        }
+
+        async function loadEventFromBackend() {
+            const token = getEventTokenFromUrl();
+            const badge = document.getElementById("connection-badge");
+
+            try {
+                // Tjek om vi har et token i URL'en, og hent fra FastAPI
+                if (token) {
+                    const headers = { "Content-Type": "application/json" };
+                    const calToken = sessionStorage.getItem("google_access_token");
+                    if (calToken) headers["x-calendar-token"] = calToken;
+
+                    const response = await fetch(`${API_BASE_URL}/events/${token}`, { headers });
+                    if (!response.ok) throw new Error("Aftale ikke fundet");
+                    
+                    currentEvent = await response.json();
+                    isBackendOnline = true;
+                    badge.textContent = "🟢 Forbundet til FastAPI";
+                    badge.className = "ml-2 text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium";
+                } else {
+                    // Tjek om serveren overhovedet svarer
+                    const res = await fetch(`${API_BASE_URL}/openapi.json`);
+                    if (!res.ok) throw new Error("Server ikke klar");
+                    isBackendOnline = true;
+                    badge.textContent = "🟢 FastAPI Klar (Viser Demo)";
+                    badge.className = "ml-2 text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium";
+                    currentEvent = fallbackDemoEvent;
+                }
+            } catch (err) {
+                isBackendOnline = false;
+                badge.textContent = "🟠 Offline Demo-mode (Start Docker for DB)";
+                badge.className = "ml-2 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium";
+                currentEvent = fallbackDemoEvent;
+            }
+
+            renderEventToUI(currentEvent);
+        }
+
+        // 2. TEGN DATA FRA BACKEND IND I HTML-TABELLEN
+        function renderEventToUI(eventData) {
+            document.getElementById("event-title").textContent = eventData.title;
+            document.getElementById("event-desc").textContent = eventData.description || "";
+
+            if (eventData.public_token && eventData.public_token !== "demo-mode") {
+                const shareBox = document.getElementById("share-link-box");
+                shareBox.classList.remove("hidden");
+                shareBox.textContent = `🔗 Delingslink: ${window.location.href}`;
+            }
+
+            const headerRow = document.getElementById("table-header-row");
+            const myVoteRow = document.getElementById("my-vote-row");
+            const scoreRow = document.getElementById("score-row");
+            const participantsBody = document.getElementById("participants-body");
+
+            // Nulstil kolonner (behold første kolonne)
+            headerRow.innerHTML = `<th class="p-4 font-semibold text-slate-600 w-48">Deltager</th>`;
+            myVoteRow.innerHTML = `<td class="p-4 align-top"><input type="text" id="voter-name" placeholder="Dit navn..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></td>`;
+            scoreRow.innerHTML = `<td class="p-4">Smart Match Score</td>`;
+
+            // Sæt standard-valg for brugeren (hvis is_busy fra backend er true -> "no", ellers "yes")
+            eventData.time_options.forEach(opt => {
+                if (opt.is_busy) {
+                    mySelections[opt.id] = "no"; // Tving altid til 'no' når kalenderen siger optaget!
+                } else if (!mySelections[opt.id]) {
+                    mySelections[opt.id] = "yes";
+                }
+            });
+
+            // Byg kolonner for hvert foreslået tidspunkt
+            eventData.time_options.forEach(opt => {
+                const start = new Date(opt.start_time);
+                const end = new Date(opt.end_time);
+                const dateStr = start.toLocaleDateString("da-DK", { weekday: "short", day: "numeric", month: "short" });
+                const timeStr = `${start.toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" })} - ${end.toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" })}`;
+
+                // 1) Tabel-header for tidspunktet
+                const th = document.createElement("th");
+                th.className = `p-4 border-l border-slate-200 min-w-[160px] ${opt.is_busy ? "busy-stripe" : ""}`;
+                th.innerHTML = `
+                    <div class="text-xs font-bold uppercase tracking-wider text-indigo-600">${dateStr}</div>
+                    <div class="text-sm font-semibold text-slate-900 mt-0.5">${timeStr}</div>
+                    ${opt.is_busy ? `<div class="mt-1 inline-block px-2 py-0.5 bg-red-100 text-red-700 rounded text-[11px] font-semibold">⛔ Optaget i kalender</div>` : ""}
+                `;
+                headerRow.appendChild(th);
+
+                // 2) Brugerens egne stemme-knapper (Ja / Om nødv. / Nej)
+                const tdVote = document.createElement("td");
+                tdVote.className = `p-4 border-l border-indigo-100 ${opt.is_busy ? "busy-stripe" : ""}`;
+                const currentChoice = mySelections[opt.id];
+                tdVote.innerHTML = `
+                    <div class="flex flex-col gap-1.5">
+                        <button onclick="setMyVote(${opt.id}, 'yes')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${currentChoice === 'yes' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}">✓ Ja</button>
+                        <button onclick="setMyVote(${opt.id}, 'if_need_be')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${currentChoice === 'if_need_be' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}">(✓) Om nødvendigt</button>
+                        <button onclick="setMyVote(${opt.id}, 'no')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${currentChoice === 'no' ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}">✕ Nej</button>
+                    </div>
+                `;
+                myVoteRow.appendChild(tdVote);
+            });
+
+            // Find alle unikke deltagere der allerede har stemt
+            const participantNames = [...new Set(eventData.time_options.flatMap(opt => opt.votes.map(v => v.participant_name)))];
+            participantsBody.innerHTML = "";
+
+            participantNames.forEach(name => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `<td class="p-4 font-medium text-slate-900">${name}</td>`;
+
+                eventData.time_options.forEach(opt => {
+                    const voteObj = opt.votes.find(v => v.participant_name === name);
+                    const status = voteObj ? voteObj.status : null;
+                    let badge = `<span class="text-slate-300">-</span>`;
+                    if (status === "yes") badge = `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">✓ Ja</span>`;
+                    if (status === "if_need_be") badge = `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">(✓) Om nødv.</span>`;
+                    if (status === "no") badge = `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-800">✕ Nej</span>`;
+
+                    tr.innerHTML += `<td class="p-4 border-l border-slate-100">${badge}</td>`;
+                });
+                participantsBody.appendChild(tr);
+            });
+
+            // Beregn Smart Match Score for hver kolonne (Ja = 2 point, Om nødvendigt = 1 point)
+            let bestScore = -1;
+            const scores = eventData.time_options.map(opt => {
+                let s = 0;
+                opt.votes.forEach(v => {
+                    if (v.status === "yes") s += 2;
+                    if (v.status === "if_need_be") s += 1;
+                });
+                if (s > bestScore) bestScore = s;
+                return s;
+            });
+
+            eventData.time_options.forEach((opt, idx) => {
+                const isWinner = scores[idx] === bestScore && bestScore > 0;
+                scoreRow.innerHTML += `
+                    <td class="p-4 border-l border-slate-200 ${isWinner ? 'bg-emerald-50 text-emerald-800 font-bold' : ''}">
+                        ${scores[idx]} point ${isWinner ? '🏆 Bedste match' : ''}
+                    </td>
+                `;
+            });
+        }
+
+        function setMyVote(optionId, status) {
+            mySelections[optionId] = status;
+            renderEventToUI(currentEvent);
+        }
+
+        // 3. INDSEND STEMMER TIL BACKEND (POST /events/{token}/vote)
+        async function handleVoteSubmit() {
+            const nameInput = document.getElementById("voter-name");
+            const participantName = nameInput.value.trim();
+            if (!participantName) {
+                alert("Indtast venligst dit navn først!");
+                return;
+            }
+
+            const votesArray = currentEvent.time_options.map(opt => ({
+                time_option_id: opt.id,
+                status: mySelections[opt.id] || "no"
+            }));
+
+            const token = getEventTokenFromUrl();
+
+            if (isBackendOnline && token && token !== "demo-mode") {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/events/${token}/vote`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            participant_name: participantName,
+                            votes: votesArray
+                        })
+                    });
+                    if (!response.ok) throw new Error("Kunne ikke gemme stemmer i databasen");
+                    await loadEventFromBackend(); // Hent opdateret liste fra PostgreSQL!
+                } catch (err) {
+                    alert("Fejl: " + err.message);
+                }
+            } else {
+                // Demo-mode: tilføj lokalt i browseren
+                currentEvent.time_options.forEach(opt => {
+                    opt.votes.push({ participant_name: participantName, status: mySelections[opt.id] });
+                });
+                renderEventToUI(currentEvent);
+            }
+        }
+
+        // 4. OPRET NY AFTALE I BACKEND (POST /events/)
+        async function handleCreateSubmit() {
+            const title = document.getElementById("create-title").value.trim();
+            const description = document.getElementById("create-desc").value.trim();
+            if (!title) {
+                alert("Giv venligst aftalen en titel!");
+                return;
+        }
+
+        const rows = document.querySelectorAll(".time-slot-row");
+        const timeOptions = [];
+
+        rows.forEach(row => {
+            const dateVal = row.querySelector(".slot-date").value;
+            const startVal = row.querySelector(".slot-start").value;
+            const endVal = row.querySelector(".slot-end").value;
+            if (dateVal && startVal && endVal) {
+                timeOptions.push({
+                    start_time: new Date(`${dateVal}T${startVal}:00`).toISOString(),
+                    end_time: new Date(`${dateVal}T${endVal}:00`).toISOString()
+                });
+            }
+        });
+
+        if (timeOptions.length === 0) {
+        alert("Tilføj mindst ét tidsrum!");
+        return;
+        }
+
+        if (isBackendOnline) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/events/`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        title: title,
+                        description: description,
+                        time_options: timeOptions
+                    })
+                });
+                if (!response.ok) throw new Error("Kunne ikke oprette i FastAPI");
+            
+                const created = await response.json();
+            
+                // 1. Sæt token i URL'en og skift fane tilbage til afstemning
+                const newUrl = `${window.location.pathname}?token=${created.public_token}`;
+                window.history.pushState({path: newUrl}, '', newUrl);
+            
+                // 2. Skift til afstemnings-fanen og indlæs den nye aftale direkte
+                switchTab("vote");
+                await loadEventFromBackend();
+            
+                // 3. Vis enekelt notifikation om at den er oprettet
+                alert(`Aftale oprettet succesfuldt! Dit delingslink er genereret i toppen.`);
+            } catch (err) {
+                alert("Fejl ved oprettelse i backend: " + err.message);
+            }
+        } else {
+            alert("Docker-backenden kører ikke endnu, så aftalen vises i lokal demo-mode.");
+            currentEvent = {
+                title,
+                description,
+                public_token: "demo-mode",
+                time_options: timeOptions.map((t, idx) => ({ id: idx + 1, ...t, is_busy: false, votes: [] }))
+            };
+            mySelections = {};
+            switchTab("vote");
+            renderEventToUI(currentEvent);
+        }
+    }
+
+        // 5. KALENDER AUTO-BUSY SIMULATION / CHECK
+        function connectCalendar() {
+            const token = getEventTokenFromUrl() || "";
+            // Send brugeren til vores FastAPI OAuth-rute
+            window.location.href = `${API_BASE_URL}/auth/google/login?event_token=${token}`;
+        }
+
+        // Hjælpefunktioner til UI
+        function switchTab(tab) {
+            document.getElementById("view-vote").classList.toggle("hidden", tab !== "vote");
+            document.getElementById("view-create").classList.toggle("hidden", tab !== "create");
+            document.getElementById("tab-vote").className = tab === "vote" ? "px-4 py-1.5 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-700" : "px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100";
+            document.getElementById("tab-create").className = tab === "create" ? "px-4 py-1.5 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-700" : "px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100";
+        }
+
+        function addTimeSlotRow() {
+            const container = document.getElementById("time-slots-container");
+            const div = document.createElement("div");
+            div.className = "flex gap-2 items-center time-slot-row";
+            div.innerHTML = `
+                <input type="date" value="2026-10-24" class="slot-date px-3 py-2 border border-slate-300 rounded-xl text-sm">
+                <input type="time" value="10:00" class="slot-start px-3 py-2 border border-slate-300 rounded-xl text-sm">
+                <span>til</span>
+                <input type="time" value="11:30" class="slot-end px-3 py-2 border border-slate-300 rounded-xl text-sm">
+            `;
+            container.appendChild(div);
+        }
+
+        function downloadICS() {
+            if (!currentEvent || !currentEvent.time_options.length) return;
+            const winOpt = currentEvent.time_options[0];
+            const dtStart = new Date(winOpt.start_time).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+            const dtEnd = new Date(winOpt.end_time).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+            const icsContent = [
+                "BEGIN:VCALENDAR",
+                "VERSION:2.0",
+                "BEGIN:VEVENT",
+                `SUMMARY:${currentEvent.title}`,
+                `DESCRIPTION:${currentEvent.description || ""}`,
+                `DTSTART:${dtStart}`,
+                `DTEND:${dtEnd}`,
+                "END:VEVENT",
+                "END:VCALENDAR"
+            ].join("\r\n");
+
+            const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `${currentEvent.title.replace(/\s+/g, "_")}.ics`;
+            link.click();
+        }
+    </script>
+</body>
+</html>
